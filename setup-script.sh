@@ -59,17 +59,18 @@ az vmss create \
   --name $vmssName \
   --image $osType \
   --vm-sku $vmSize \
-  --nsg $nsgName \
   --subnet $subnetName \
   --vnet-name $vnetName \
   --backend-pool-name $bePoolName \
+  --nsg $nsgName \
   --storage-sku $storageType \
   --load-balancer $lbName \
   --custom-data cloud-init.txt \
   --upgrade-policy-mode automatic \
   --admin-username $adminName \
   --generate-ssh-keys \
-  --verbose 
+  --orchestration-mode Uniform \
+  --verbose
 
 echo "VM scale set created: $vmssName"
 

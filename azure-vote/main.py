@@ -8,21 +8,32 @@ import logging
 from datetime import datetime
 
 # App Insights
-# TODO: Import required libraries for App Insights
+from opencensus.ext.azure.log_exporter import AzureLogHandler
+from opencensus.ext.azure.log_exporter import AzureEventHandler
+from opencensus.ext.azure.trace_exporter import AzureExporter
+from opencensus.ext.azure.metrics_exporter import MetricsExporter
+from opencensus.trace.samplers import ProbabilitySampler
+from opencensus.trace.tracer import Tracer
+from opencensus.ext.flask.flask_middleware import FlaskMiddleware
 
 # Logging
-logger = # TODO: Setup logger
-
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(AzureLogHandler(connection_string="InstrumentationKey=9a7721fe-d494-4032-b27a-2b8ebc99124a;IngestionEndpoint=https://westus-0.in.applicationinsights.azure.com/;LiveEndpoint=https://westus.livediagnostics.monitor.azure.com/;ApplicationId=436483f1-6f94-486f-9a03-0f6e42ea3b54"))
+logger.addHandler(AzureEventHandler(connection_string="InstrumentationKey=9a7721fe-d494-4032-b27a-2b8ebc99124a;IngestionEndpoint=https://westus-0.in.applicationinsights.azure.com/;LiveEndpoint=https://westus.livediagnostics.monitor.azure.com/;ApplicationId=436483f1-6f94-486f-9a03-0f6e42ea3b54"))
 # Metrics
-exporter = # TODO: Setup exporter
+exporter = MetricsExporter(connection_string="InstrumentationKey=9a7721fe-d494-4032-b27a-2b8ebc99124a;IngestionEndpoint=https://westus-0.in.applicationinsights.azure.com/;LiveEndpoint=https://westus.livediagnostics.monitor.azure.com/;ApplicationId=436483f1-6f94-486f-9a03-0f6e42ea3b54")
 
 # Tracing
-tracer = # TODO: Setup tracer
+tracer = Tracer(exporter=AzureExporter(connection_string="InstrumentationKey=9a7721fe-d494-4032-b27a-2b8ebc99124a;IngestionEndpoint=https://westus-0.in.applicationinsights.azure.com/;LiveEndpoint=https://westus.livediagnostics.monitor.azure.com/;ApplicationId=436483f1-6f94-486f-9a03-0f6e42ea3b54"),
+                sampler=ProbabilitySampler(1.0))
 
 app = Flask(__name__)
 
 # Requests
-middleware = # TODO: Setup flask middleware
+middleware = FlaskMiddleware(app, 
+                              exporter=AzureExporter(connection_string="InstrumentationKey=9a7721fe-d494-4032-b27a-2b8ebc99124a;IngestionEndpoint=https://westus-0.in.applicationinsights.azure.com/;LiveEndpoint=https://westus.livediagnostics.monitor.azure.com/;ApplicationId=436483f1-6f94-486f-9a03-0f6e42ea3b54"),
+                              sampler=ProbabilitySampler(1.0))
 
 # Load configurations from environment or config file
 app.config.from_pyfile('config_file.cfg')
@@ -43,26 +54,25 @@ else:
     title = app.config['TITLE']
 
 # Redis Connection
-r = redis.Redis()
+r = redis.StrictRedis(host='redis', port=6379, db=0)
 
 # Change title to host name to demo NLB
 if app.config['SHOWHOST'] == "true":
     title = socket.gethostname()
 
 # Init Redis
-if not r.get(button1): r.set(button1,0)
-if not r.get(button2): r.set(button2,0)
+if not r.get(button1): r.set(button1, 0)
+if not r.get(button2): r.set(button2, 0)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
 
     if request.method == 'GET':
-
         # Get current values
         vote1 = r.get(button1).decode('utf-8')
-        # TODO: use tracer object to trace cat vote
+        tracer.span(name="CatVote").add_attribute("vote.count", vote1)  # Use tracer object to trace cat vote
         vote2 = r.get(button2).decode('utf-8')
-        # TODO: use tracer object to trace dog vote
+        tracer.span(name="DogVote").add_attribute("vote.count", vote2)  # Use tracer object to trace dog vote
 
         # Return index with values
         return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
@@ -70,35 +80,43 @@ def index():
     elif request.method == 'POST':
 
         if request.form['vote'] == 'reset':
-
             # Empty table and return results
-            r.set(button1,0)
-            r.set(button2,0)
+            r.set(button1, 0)
+            r.set(button2, 0)
             vote1 = r.get(button1).decode('utf-8')
             properties = {'custom_dimensions': {'Cats Vote': vote1}}
-            # TODO: use logger object to log cat vote
+            logger.info("Votes reset - Cats", extra=properties)  # Use logger object to log cat vote
 
             vote2 = r.get(button2).decode('utf-8')
             properties = {'custom_dimensions': {'Dogs Vote': vote2}}
-            # TODO: use logger object to log dog vote
+            logger.info("Votes reset - Dogs", extra=properties)  # Use logger object to log dog vote
 
             return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
 
         else:
-
             # Insert vote result into DB
             vote = request.form['vote']
-            r.incr(vote,1)
+            r.incr(vote, 1)
 
             # Get current values
             vote1 = r.get(button1).decode('utf-8')
             vote2 = r.get(button2).decode('utf-8')
 
+            # Add custom telemetry for Cats and Dogs button clicks
+            if vote == button1:
+                logger.info("Cats Vote", extra={'custom_dimensions': {'vote.count': vote1}})
+                tracer.span(name="CatVote").add_attribute("vote.count", vote1)
+            elif vote == button2:
+                logger.info("Dogs Vote", extra={'custom_dimensions': {'vote.count': vote2}})
+                tracer.span(name="DogVote").add_attribute("vote.count", vote2)
+
             # Return results
             return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
 
 if __name__ == "__main__":
-    # TODO: Use the statement below when running locally
-    app.run() 
-    # TODO: Use the statement below before deployment to VMSS
-    # app.run(host='0.0.0.0', threaded=True, debug=True) # remote
+    # For local development (run locally)
+    # app.run(debug=True)  
+
+    # For production (e.g., running in Docker or VM)
+    app.run(host='0.0.0.0', port=5000, debug=False)  # Ensure it's accessible externally
+
