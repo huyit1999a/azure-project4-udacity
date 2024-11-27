@@ -54,7 +54,13 @@ else:
     title = app.config['TITLE']
 
 # Redis Connection
-r = redis.StrictRedis(host='redis', port=6379, db=0)
+redis_server = os.environ['REDIS']
+
+# Redis Connection to another container
+r = redis.StrictRedis(
+    host='azure-vote-back',
+    port=6379
+)
 
 # Change title to host name to demo NLB
 if app.config['SHOWHOST'] == "true":

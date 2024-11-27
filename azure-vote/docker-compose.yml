@@ -1,19 +1,19 @@
-version: '3'
-
+version: "3"
 services:
-  redis:
-    image: redis:6.2
-    container_name: redis
+  azure-vote-back:
+    image: mcr.microsoft.com/oss/bitnami/redis:6.0.8
+    container_name: azure-vote-back
+    environment:
+      ALLOW_EMPTY_PASSWORD: "yes"
     ports:
       - "6379:6379"
 
-  flask-app:
+  azure-vote-front:
     build: .
-    container_name: flask-app
-    ports:
-      - "5000:5000"
-    depends_on:
-      - redis
+    #image: mcr.microsoft.com/azuredocs/azure-vote-front:v1
+    image: azure-vote-front:v1
+    container_name: azure-vote-front
     environment:
-      - REDIS_HOST=redis
-    command: python main.py
+      REDIS: azure-vote-back
+    ports:
+      - "8081:80"

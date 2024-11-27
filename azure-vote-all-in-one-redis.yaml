@@ -57,7 +57,6 @@ spec:
         "beta.kubernetes.io/os": linux
       containers:
       - name: azure-vote-front
-        #image: mcr.microsoft.com/azuredocs/azure-vote-front:v1
         image: myacr202106.azurecr.io/azure-vote-front:v1
         ports:
         - containerPort: 80
@@ -67,8 +66,8 @@ spec:
           limits:
             cpu: 500m
         env:
-        - name: REDIS
-          value: "azure-vote-back"
+        - name: REDIS_HOST
+          value: "azure-vote-back"  # Ensure the Redis hostname matches the backend service
 ---
 apiVersion: v1
 kind: Service
